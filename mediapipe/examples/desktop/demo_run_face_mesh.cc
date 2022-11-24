@@ -146,9 +146,6 @@ absl::Status RunMPPGraph() {
             hand_landmarks_packet.Get<
                 std::vector<::mediapipe::NormalizedLandmarkList>>();
 
-        zmq_msg_t msg;
-        rc = zmq_msg_init(&msg);
-
         for (const auto &single_hand_landmarks : landmarks)
         {
           #define BUFFER_SIZE 1400
