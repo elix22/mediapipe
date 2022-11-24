@@ -40,3 +40,11 @@ cc_binary(
         "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )
+
+cc_binary(
+    name = "hand_tracking",
+    deps = [
+        "//mediapipe/examples/desktop:demo_run_hand_tracking",
+        "//mediapipe/graphs/hand_tracking:desktop_tflite_calculators",
+    ],
+)

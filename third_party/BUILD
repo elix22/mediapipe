@@ -70,6 +70,14 @@ alias(
     visibility = ["//visibility:public"],
 )
 
+alias(
+    name = "zeromq",
+    actual = select({
+        "//conditions:default": ":zeromq_binary",
+    }),
+    visibility = ["//visibility:public"],
+)
+
 load("@rules_foreign_cc//tools/build_defs:cmake.bzl", "cmake_external")
 
 # Note: this determines the order in which the libraries are passed to the
@@ -197,6 +205,15 @@ alias(
         "//conditions:default": "@linux_opencv//:opencv",
     }),
 )
+
+alias(
+    name = "zeromq_binary",
+    actual = select({
+        "//mediapipe:macos": "@macos_zeromq//:zeromq",
+        "//conditions:default": "@macos_zeromq//:zeromq",
+    }),
+)
+
 
 cc_library(
     name = "libffmpeg",

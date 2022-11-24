@@ -209,6 +209,16 @@ new_local_repository(
     path = "/usr/local",
 )
 
+# 
+new_local_repository(
+    name = "macos_zeromq",
+    build_file = "@//third_party:zeromq_macos.BUILD",
+    # For local MacOS builds, the path should point to an zeromq installation.
+    # If you edit the path here, you will also need to update the corresponding
+    # prefix in "zeromq_macos.BUILD".
+    path = "/usr/local",
+)
+
 new_local_repository(
     name = "macos_ffmpeg",
     build_file = "@//third_party:ffmpeg_macos.BUILD",
@@ -417,3 +427,6 @@ libedgetpu_dependencies()
 
 load("@coral_crosstool//:configure.bzl", "cc_crosstool")
 cc_crosstool(name = "crosstool")
+
+android_sdk_repository(name = "androidsdk", path = "/Users/elialoni/Library/Android/sdk")
+android_ndk_repository(name = "androidndk", api_level=21, path = "/Users/elialoni/Library/Android/sdk/ndk/21.4.7075529")

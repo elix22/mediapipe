@@ -40,3 +40,11 @@ cc_binary(
         "//mediapipe/graphs/face_mesh:desktop_live_gpu_calculators",
     ],
 )
+
+cc_binary(
+    name = "face_mesh",
+    deps = [
+        "//mediapipe/examples/desktop:demo_run_face_mesh",
+        "//mediapipe/graphs/face_mesh:desktop_live_calculators",
+    ],
+)

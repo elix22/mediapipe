@@ -50,6 +50,8 @@ cc_library(
         "//mediapipe/framework/port:status",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "//third_party:zeromq",
     ],
 )
 
@@ -75,5 +77,46 @@ cc_library(
         "//mediapipe/gpu:gpu_shared_data_internal",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+    ],
+)
+
+
+cc_library(
+    name = "demo_run_face_mesh",
+    srcs = ["demo_run_face_mesh.cc"],
+    deps = [
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework/formats:image_frame",
+        "//mediapipe/framework/formats:image_frame_opencv",
+        "//mediapipe/framework/port:file_helpers",
+        "//mediapipe/framework/port:opencv_highgui",
+        "//mediapipe/framework/port:opencv_imgproc",
+        "//mediapipe/framework/port:opencv_video",
+        "//mediapipe/framework/port:parse_text_proto",
+        "//mediapipe/framework/port:status",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "//third_party:zeromq",
+    ],
+)
+
+cc_library(
+    name = "demo_run_hand_tracking",
+    srcs = ["demo_run_hand_tracking.cc"],
+    deps = [
+        "//mediapipe/framework:calculator_framework",
+        "//mediapipe/framework/formats:image_frame",
+        "//mediapipe/framework/formats:image_frame_opencv",
+        "//mediapipe/framework/port:file_helpers",
+        "//mediapipe/framework/port:opencv_highgui",
+        "//mediapipe/framework/port:opencv_imgproc",
+        "//mediapipe/framework/port:opencv_video",
+        "//mediapipe/framework/port:parse_text_proto",
+        "//mediapipe/framework/port:status",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/flags:parse",
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "//third_party:zeromq",
     ],
 )
