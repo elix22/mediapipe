@@ -123,8 +123,8 @@ absl::Status RunMPPGraph() {
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller landMarksPoller,
                    graph.AddOutputStreamPoller(kMultiFaceLandMarks));
 
-  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller faceRectsLandMarksPoller,
-                   graph.AddOutputStreamPoller(kFaceRectsLandMarks));
+  // ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller faceRectsLandMarksPoller,
+  //                  graph.AddOutputStreamPoller(kFaceRectsLandMarks));
   //
     
   MP_RETURN_IF_ERROR(graph.StartRun({}));
@@ -169,55 +169,45 @@ absl::Status RunMPPGraph() {
 
     //
     // Get the packet containing multi_hand_landmarks.
-    if(landMarksPoller.QueueSize()>0)
+    if (landMarksPoller.QueueSize() > 0)
     {
+      ::mediapipe::Packet mesh_landmarks_packet;
+      if (!landMarksPoller.Next(&mesh_landmarks_packet))
+        break;
+      const auto &landmarks =
+          mesh_landmarks_packet.Get<
+              std::vector<::mediapipe::NormalizedLandmarkList>>();
 
-        ::mediapipe::Packet mesh_landmarks_packet;
-        if (!landMarksPoller.Next(&mesh_landmarks_packet)) break;
-        const auto& landmarks =
-            mesh_landmarks_packet.Get<
-                std::vector<::mediapipe::NormalizedLandmarkList>>();
-
-        for (const auto &single_mesh_face_landmarks : landmarks)
+      int face_mesh_index = 0;
+      FaceMesh faceMesh = {0};
+      for (const auto &single_mesh_face_landmarks : landmarks)
+      {
+        faceMesh.id = face_mesh_index++;
+        for (int i = 0; i < single_mesh_face_landmarks.landmark_size(); ++i)
         {
-          #define BUFFER_SIZE 1400
-          float send_buffer[BUFFER_SIZE * 3];
-          int index = 0;
-          // LOG(INFO) << "\tLandmark size: " << single_mesh_face_landmarks.landmark_size();
-          for (int i = 0; i < single_mesh_face_landmarks.landmark_size(); ++i)
-          {
-            const auto &landmark = single_mesh_face_landmarks.landmark(i);
-            if (i < BUFFER_SIZE)
-            {
-              send_buffer[index++] = landmark.x();
-              send_buffer[index++] = landmark.y();
-              send_buffer[index++] = landmark.z();
-            }
-            // LOG(INFO) << "\tLandmark [" << i << "]: ("
-            //           << landmark.x() << ", "
-            //           << landmark.y() << ", "
-            //           << landmark.z() << ")";
-          }
-
-          zmq_send (responder, send_buffer, index*sizeof(float), 0);
+          if(i>=478)break;// not needed , just for safety
+          const auto &landmark = single_mesh_face_landmarks.landmark(i);
+          faceMesh.landmarkers[i] = Vector3d(landmark.x(),landmark.y(),landmark.z());
         }
+
+        zmq_send (responder, (const unsigned char*)&faceMesh, sizeof(FaceMesh), 0);
+      }
+
     }
 
-    if(faceRectsLandMarksPoller.QueueSize()>0)
-    {
-              ::mediapipe::Packet face_rect_landmarks_packet;
-        if (!faceRectsLandMarksPoller.Next(&face_rect_landmarks_packet)) break;
-        const auto& rects =
-            face_rect_landmarks_packet.Get<
-                std::vector<::mediapipe::NormalizedRect>>();
+    // if(faceRectsLandMarksPoller.QueueSize()>0)
+    // {
+    //           ::mediapipe::Packet face_rect_landmarks_packet;
+    //     if (!faceRectsLandMarksPoller.Next(&face_rect_landmarks_packet)) break;
+    //     const auto& rects =
+    //         face_rect_landmarks_packet.Get<
+    //             std::vector<::mediapipe::NormalizedRect>>();
 
-        // for (const auto &rect : rects)
-        // {
-        //     rect.x_center();
-        // }
-
-        
-    }
+    //     // for (const auto &rect : rects)
+    //     // {
+    //     //     rect.x_center();
+    //     // } 
+    // }
 
     auto& output_frame = packet.Get<mediapipe::ImageFrame>();
 

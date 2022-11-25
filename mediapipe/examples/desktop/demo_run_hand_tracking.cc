@@ -180,7 +180,7 @@ absl::Status RunMPPGraph() {
             const auto &landmark = single_hand_landmarks.landmark(i);
             hand.landmarkers[i] = Vector3d(landmark.x(),landmark.y(),landmark.z());
           }
-          zmq_send (responder, (unsigned char*)&hand, sizeof(Hand), 0);
+          zmq_send (responder, (const unsigned char*)&hand, sizeof(Hand), 0);
         }
     }
 
