@@ -32,6 +32,31 @@
 #include <zmq.h>
 #include <zmq_utils.h>
 
+struct Vector3d
+{
+  Vector3d()
+  {
+    x = 0;
+    y = 0;
+    z = 0;
+  }
+  Vector3d(float _x, float _y, float _z)
+  {
+    x = _x;
+    y = _y;
+    z = _z;
+  }
+  float x;
+  float y;
+  float z;
+};
+
+struct FaceMesh
+{
+  int32_t id;
+  Vector3d landmarkers[478];
+};
+
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
 constexpr char kWindowName[] = "MediaPipe";
@@ -158,6 +183,7 @@ absl::Status RunMPPGraph() {
           #define BUFFER_SIZE 1400
           float send_buffer[BUFFER_SIZE * 3];
           int index = 0;
+          // LOG(INFO) << "\tLandmark size: " << single_mesh_face_landmarks.landmark_size();
           for (int i = 0; i < single_mesh_face_landmarks.landmark_size(); ++i)
           {
             const auto &landmark = single_mesh_face_landmarks.landmark(i);

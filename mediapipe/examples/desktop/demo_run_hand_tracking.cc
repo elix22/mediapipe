@@ -179,8 +179,8 @@ absl::Status RunMPPGraph() {
             if(i>=21)break;// not needed , just for safety
             const auto &landmark = single_hand_landmarks.landmark(i);
             hand.landmarkers[i] = Vector3d(landmark.x(),landmark.y(),landmark.z());
-            zmq_send (responder, (unsigned char*)&hand, sizeof(Hand), 0);
           }
+          zmq_send (responder, (unsigned char*)&hand, sizeof(Hand), 0);
         }
     }
 
