@@ -27,6 +27,7 @@
 #include "mediapipe/framework/port/parse_text_proto.h"
 #include "mediapipe/framework/port/status.h"
 #include "mediapipe/framework/formats/landmark.pb.h"
+#include "mediapipe/framework/formats/rect.pb.h"
 
 #include <zmq.h>
 #include <zmq_utils.h>
@@ -36,7 +37,8 @@ constexpr char kOutputStream[] = "output_video";
 constexpr char kWindowName[] = "MediaPipe";
 constexpr char kOutputLandMarks[] = "landmarks";
 constexpr char kMultiFaceLandMarks[] = "multi_face_landmarks";
-//
+constexpr char kFaceRectsLandMarks[] = "face_rects_from_landmarks";
+// 
 
 ABSL_FLAG(std::string, calculator_graph_config_file, "",
           "Name of file containing text format CalculatorGraphConfig proto.");
@@ -95,6 +97,10 @@ absl::Status RunMPPGraph() {
 
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller landMarksPoller,
                    graph.AddOutputStreamPoller(kMultiFaceLandMarks));
+
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller faceRectsLandMarksPoller,
+                   graph.AddOutputStreamPoller(kFaceRectsLandMarks));
+  //
     
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
@@ -140,20 +146,21 @@ absl::Status RunMPPGraph() {
     // Get the packet containing multi_hand_landmarks.
     if(landMarksPoller.QueueSize()>0)
     {
-        ::mediapipe::Packet hand_landmarks_packet;
-        if (!landMarksPoller.Next(&hand_landmarks_packet)) break;
+
+        ::mediapipe::Packet mesh_landmarks_packet;
+        if (!landMarksPoller.Next(&mesh_landmarks_packet)) break;
         const auto& landmarks =
-            hand_landmarks_packet.Get<
+            mesh_landmarks_packet.Get<
                 std::vector<::mediapipe::NormalizedLandmarkList>>();
 
-        for (const auto &single_hand_landmarks : landmarks)
+        for (const auto &single_mesh_face_landmarks : landmarks)
         {
           #define BUFFER_SIZE 1400
           float send_buffer[BUFFER_SIZE * 3];
           int index = 0;
-          for (int i = 0; i < single_hand_landmarks.landmark_size(); ++i)
+          for (int i = 0; i < single_mesh_face_landmarks.landmark_size(); ++i)
           {
-            const auto &landmark = single_hand_landmarks.landmark(i);
+            const auto &landmark = single_mesh_face_landmarks.landmark(i);
             if (i < BUFFER_SIZE)
             {
               send_buffer[index++] = landmark.x();
@@ -168,6 +175,22 @@ absl::Status RunMPPGraph() {
 
           zmq_send (responder, send_buffer, index*sizeof(float), 0);
         }
+    }
+
+    if(faceRectsLandMarksPoller.QueueSize()>0)
+    {
+              ::mediapipe::Packet face_rect_landmarks_packet;
+        if (!faceRectsLandMarksPoller.Next(&face_rect_landmarks_packet)) break;
+        const auto& rects =
+            face_rect_landmarks_packet.Get<
+                std::vector<::mediapipe::NormalizedRect>>();
+
+        // for (const auto &rect : rects)
+        // {
+        //     rect.x_center();
+        // }
+
+        
     }
 
     auto& output_frame = packet.Get<mediapipe::ImageFrame>();

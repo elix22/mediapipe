@@ -31,6 +31,31 @@
 #include <zmq.h>
 #include <zmq_utils.h>
 
+struct Vector3d
+{
+  Vector3d()
+  {
+    x = 0;
+    y = 0;
+    z = 0;
+  }
+  Vector3d(float _x, float _y, float _z)
+  {
+    x = _x;
+    y = _y;
+    z = _z;
+  }
+  float x;
+  float y;
+  float z;
+};
+
+struct Hand
+{
+  int32_t id;
+  Vector3d landmarkers[21];
+};
+
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
 constexpr char kWindowName[] = "MediaPipe";
@@ -144,28 +169,18 @@ absl::Status RunMPPGraph() {
         const auto& landmarks =
             hand_landmarks_packet.Get<
                 std::vector<::mediapipe::NormalizedLandmarkList>>();
-
+        int hand_index = 0;
+        Hand hand = {0};
         for (const auto &single_hand_landmarks : landmarks)
         {
-          #define BUFFER_SIZE 1400
-          float send_buffer[BUFFER_SIZE * 3];
-          int index = 0;
+          hand.id = hand_index++;
           for (int i = 0; i < single_hand_landmarks.landmark_size(); ++i)
           {
+            if(i>=21)break;// not needed , just for safety
             const auto &landmark = single_hand_landmarks.landmark(i);
-            if (i < BUFFER_SIZE)
-            {
-              send_buffer[index++] = landmark.x();
-              send_buffer[index++] = landmark.y();
-              send_buffer[index++] = landmark.z();
-            }
-            // LOG(INFO) << "\tLandmark [" << i << "]: ("
-            //           << landmark.x() << ", "
-            //           << landmark.y() << ", "
-            //           << landmark.z() << ")";
+            hand.landmarkers[i] = Vector3d(landmark.x(),landmark.y(),landmark.z());
+            zmq_send (responder, (unsigned char*)&hand, sizeof(Hand), 0);
           }
-
-          zmq_send (responder, send_buffer, index*sizeof(float), 0);
         }
     }
 
