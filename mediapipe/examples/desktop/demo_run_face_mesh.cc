@@ -89,8 +89,8 @@ absl::Status RunMPPGraph() {
 
   /*TBD ELI Zeromq*/
   void *context = zmq_ctx_new();
-  void *responder = zmq_socket(context, ZMQ_PUB);
-  int rc = zmq_bind(responder, "tcp://*:5556");
+  void *zmqPublisher = zmq_socket(context, ZMQ_PUB);
+  int rc = zmq_bind(zmqPublisher, "tcp://*:5556");
   assert(rc == 0);
 
   LOG(INFO) << "Initialize the calculator graph.";
@@ -197,7 +197,7 @@ absl::Status RunMPPGraph() {
           faceMesh.landmarkers[i] = Vector3d(landmark.x(),landmark.y(),landmark.z());
         }
 
-        zmq_send (responder, (const unsigned char*)&faceMesh, sizeof(FaceMesh), 0);
+        zmq_send (zmqPublisher, (const unsigned char*)&faceMesh, sizeof(FaceMesh), 0);
       }
 
     }
@@ -240,7 +240,7 @@ absl::Status RunMPPGraph() {
 
   LOG(INFO) << "Shutting down.";
 
-  zmq_close (responder);
+  zmq_close (zmqPublisher);
   zmq_ctx_destroy (context);
 
   if (writer.isOpened()) writer.release();
