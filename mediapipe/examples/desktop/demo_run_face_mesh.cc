@@ -54,6 +54,8 @@ struct Vector3d
 struct FaceMesh
 {
   int32_t id;
+  float capture_width;
+  float capture_height;
   Vector3d landmarkers[478];
 };
 
@@ -129,6 +131,9 @@ absl::Status RunMPPGraph() {
     
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
+  float capture_width = static_cast<int>(capture.get(cv::CAP_PROP_FRAME_WIDTH));
+  float capture_height = static_cast<int>(capture.get(cv::CAP_PROP_FRAME_HEIGHT));
+
   LOG(INFO) << "Start grabbing and processing frames.";
   bool grab_frames = true;
   while (grab_frames) {
@@ -180,6 +185,8 @@ absl::Status RunMPPGraph() {
 
       int face_mesh_index = 0;
       FaceMesh faceMesh = {0};
+      faceMesh.capture_width = capture_width ;
+      faceMesh.capture_height = capture_height;
       for (const auto &single_mesh_face_landmarks : landmarks)
       {
         faceMesh.id = face_mesh_index++;
