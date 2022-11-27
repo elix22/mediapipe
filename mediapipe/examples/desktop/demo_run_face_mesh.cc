@@ -61,13 +61,11 @@ struct FaceMesh
   Vector3d landmarkers[478];
 };
 
-#define GL_TRIANGLES 0x0004
+#define GL_TRIANGLES                      0x0004
 
-struct RenderableMesh3d
-{
+struct RenderableMesh3d {
   static absl::StatusOr<RenderableMesh3d> CreateFromProtoMesh3d(
-      const mediapipe::face_geometry::Mesh3d &proto_mesh_3d)
-  {
+      const mediapipe::face_geometry::Mesh3d& proto_mesh_3d) {
     mediapipe::face_geometry::Mesh3d::VertexType vertex_type = proto_mesh_3d.vertex_type();
 
     RenderableMesh3d renderable_mesh_3d;
@@ -89,26 +87,23 @@ struct RenderableMesh3d
         GetVertexComponentOffset(vertex_type, mediapipe::face_geometry::VertexComponent::TEX_COORD),
         _ << "Failed to get the tex coord vertex offset!");
 
-    switch (proto_mesh_3d.primitive_type())
-    {
-    case mediapipe::face_geometry::Mesh3d::TRIANGLE:
-      renderable_mesh_3d.primitive_type = GL_TRIANGLES;
-      break;
+    switch (proto_mesh_3d.primitive_type()) {
+      case mediapipe::face_geometry::Mesh3d::TRIANGLE:
+        renderable_mesh_3d.primitive_type = GL_TRIANGLES;
+        break;
 
-    default:
-      RET_CHECK_FAIL() << "Only triangle primitive types are supported!";
+      default:
+        RET_CHECK_FAIL() << "Only triangle primitive types are supported!";
     }
 
     renderable_mesh_3d.vertex_buffer.reserve(
         proto_mesh_3d.vertex_buffer_size());
-    for (float vertex_element : proto_mesh_3d.vertex_buffer())
-    {
+    for (float vertex_element : proto_mesh_3d.vertex_buffer()) {
       renderable_mesh_3d.vertex_buffer.push_back(vertex_element);
     }
 
     renderable_mesh_3d.index_buffer.reserve(proto_mesh_3d.index_buffer_size());
-    for (uint32_t index_element : proto_mesh_3d.index_buffer())
-    {
+    for (uint32_t index_element : proto_mesh_3d.index_buffer()) {
       RET_CHECK_LE(index_element, std::numeric_limits<uint16_t>::max())
           << "Index buffer elements must fit into the `uint16` type in order "
              "to be renderable!";
@@ -134,7 +129,7 @@ struct RenderableMesh3d
 struct ZeroMQ3DGeometry
 {
   int32_t id;
-  uint32_t sequance_id;
+  uint32_t sequance_id ;
   float transform_matrix[16];
   uint32_t vertex_size;
   uint32_t vertex_position_size;
@@ -154,6 +149,7 @@ constexpr char kMultiFaceLandMarks[] = "multi_face_landmarks";
 constexpr char kFaceRectsLandMarks[] = "face_rects_from_landmarks";
 constexpr char kMultiFaceGeometry[] = "multi_face_geometry";
 
+
 ABSL_FLAG(std::string, calculator_graph_config_file, "",
           "Name of file containing text format CalculatorGraphConfig proto.");
 ABSL_FLAG(std::string, input_video_path, "",
@@ -163,108 +159,34 @@ ABSL_FLAG(std::string, output_video_path, "",
           "Full path of where to save result (.mp4 only). "
           "If not provided, show result in a window.");
 
-static absl::StatusOr<std::array<float, 16>>
-Convert4x4MatrixDataToArrayFormat(const mediapipe::MatrixData &matrix_data)
-{
-  RET_CHECK(matrix_data.rows() == 4 && //
-            matrix_data.cols() == 4 && //
-            matrix_data.packed_data_size() == 16)
-      << "The matrix data must define a 4x4 matrix!";
 
-  std::array<float, 16> matrix_array;
-  for (int i = 0; i < 16; i++)
-  {
-    matrix_array[i] = matrix_data.packed_data(i);
-  }
+  static absl::StatusOr<std::array<float, 16>>
+  Convert4x4MatrixDataToArrayFormat(const mediapipe::MatrixData& matrix_data) {
+    RET_CHECK(matrix_data.rows() == 4 &&  //
+              matrix_data.cols() == 4 &&  //
+              matrix_data.packed_data_size() == 16)
+        << "The matrix data must define a 4x4 matrix!";
 
-  // Matrix array must be in the OpenGL-friendly column-major order. If
-  // `matrix_data` is in the row-major order, then transpose.
-  if (matrix_data.layout() == mediapipe::MatrixData::ROW_MAJOR)
-  {
-    std::swap(matrix_array[1], matrix_array[4]);
-    std::swap(matrix_array[2], matrix_array[8]);
-    std::swap(matrix_array[3], matrix_array[12]);
-    std::swap(matrix_array[6], matrix_array[9]);
-    std::swap(matrix_array[7], matrix_array[13]);
-    std::swap(matrix_array[11], matrix_array[14]);
-  }
-
-  return matrix_array;
-}
-
-absl::Status ProcessGeometry(mediapipe::OutputStreamPoller &multiFaceGeometryPoller, void **zmqGeometryPublisher)
-{
-  static uint32_t sequance_id = 0;
-
-  if (multiFaceGeometryPoller.QueueSize() > 0)
-  {
-    ::mediapipe::Packet face_geometry_packet;
-    if (multiFaceGeometryPoller.Next(&face_geometry_packet))
-    {
-      const auto &multi_face_geometry = face_geometry_packet.Get<std::vector<mediapipe::face_geometry::FaceGeometry>>();
-      const int num_faces = multi_face_geometry.size();
-      std::vector<std::array<float, 16>> face_pose_transform_matrices(num_faces);
-      std::vector<RenderableMesh3d> renderable_face_meshes(num_faces);
-
-      for (int i = 0; i < num_faces; ++i)
-      {
-        const auto &face_geometry = multi_face_geometry[i];
-
-        ASSIGN_OR_RETURN(
-            face_pose_transform_matrices[i],
-            Convert4x4MatrixDataToArrayFormat(
-                face_geometry.pose_transform_matrix()),
-            _ << "Failed to extract the face pose transformation matrix!");
-
-        // column major matrix
-        // LOG(INFO) << "face_pose_transform_matrix "<< i;
-        // LOG(INFO) << face_pose_transform_matrices[i][0] << ":" << face_pose_transform_matrices[i][4] << ":" << face_pose_transform_matrices[i][8]<< ":" << face_pose_transform_matrices[i][12];
-        // LOG(INFO) << face_pose_transform_matrices[i][1] << ":" << face_pose_transform_matrices[i][5] << ":" << face_pose_transform_matrices[i][9]<< ":" << face_pose_transform_matrices[i][13];
-        // LOG(INFO) << face_pose_transform_matrices[i][2] << ":" << face_pose_transform_matrices[i][6] << ":" << face_pose_transform_matrices[i][10]<< ":" << face_pose_transform_matrices[i][14];
-        // LOG(INFO) << face_pose_transform_matrices[i][3] << ":" << face_pose_transform_matrices[i][7] << ":" << face_pose_transform_matrices[i][11]<< ":" << face_pose_transform_matrices[i][15];
-
-        // Extract the face mesh as a renderable.
-        ASSIGN_OR_RETURN(
-            renderable_face_meshes[i],
-            RenderableMesh3d::CreateFromProtoMesh3d(face_geometry.mesh()),
-            _ << "Failed to extract a renderable face mesh!");
-
-        // LOG(INFO) << "RenderableMesh3d " << i
-        // << " vertex_size:" << renderable_face_meshes[i].vertex_size
-        // << " vertex_position_size:" << renderable_face_meshes[i].vertex_position_size
-        // << " tex_coord_position_size:" << renderable_face_meshes[i].tex_coord_position_size
-        // << " vertex_position_offset:" << renderable_face_meshes[i].vertex_position_offset
-        // << " tex_coord_position_offset:" << renderable_face_meshes[i].tex_coord_position_offset
-        // << " vertex_buffer size:" << renderable_face_meshes[i].vertex_buffer.size()
-        // << " index_buffer size:" << renderable_face_meshes[i].index_buffer.size()
-        // ;
-
-        if (renderable_face_meshes[i].vertex_buffer.size() == 2340 && renderable_face_meshes[i].index_buffer.size() == 2694)
-        {
-          ZeroMQ3DGeometry zeroMQ3DGeometry = {0};
-          zeroMQ3DGeometry.id = i;
-          zeroMQ3DGeometry.sequance_id = sequance_id;
-          memcpy(zeroMQ3DGeometry.transform_matrix, face_pose_transform_matrices.data(), 16 * sizeof(float));
-          zeroMQ3DGeometry.vertex_size = renderable_face_meshes[i].vertex_size;
-          zeroMQ3DGeometry.vertex_position_size = renderable_face_meshes[i].vertex_position_size;
-          zeroMQ3DGeometry.tex_coord_position_size = renderable_face_meshes[i].tex_coord_position_size;
-          zeroMQ3DGeometry.vertex_position_offset = renderable_face_meshes[i].vertex_position_offset;
-          zeroMQ3DGeometry.tex_coord_position_offset = renderable_face_meshes[i].tex_coord_position_offset;
-          zeroMQ3DGeometry.primitive_type = renderable_face_meshes[i].primitive_type;
-          memcpy(zeroMQ3DGeometry.vertex_buffer, renderable_face_meshes[i].vertex_buffer.data(), 2340 * sizeof(float));
-          memcpy(zeroMQ3DGeometry.index_buffer, renderable_face_meshes[i].index_buffer.data(), 2694 * sizeof(uint16_t));
-
-          zmq_send(*zmqGeometryPublisher, (const unsigned char *)&zeroMQ3DGeometry, sizeof(ZeroMQ3DGeometry), 0);
-        }
-      }
-
-      sequance_id++;
+    std::array<float, 16> matrix_array;
+    for (int i = 0; i < 16; i++) {
+      matrix_array[i] = matrix_data.packed_data(i);
     }
-  }
-}
 
-absl::Status RunMPPGraph()
-{
+    // Matrix array must be in the OpenGL-friendly column-major order. If
+    // `matrix_data` is in the row-major order, then transpose.
+    if (matrix_data.layout() == mediapipe::MatrixData::ROW_MAJOR) {
+      std::swap(matrix_array[1], matrix_array[4]);
+      std::swap(matrix_array[2], matrix_array[8]);
+      std::swap(matrix_array[3], matrix_array[12]);
+      std::swap(matrix_array[6], matrix_array[9]);
+      std::swap(matrix_array[7], matrix_array[13]);
+      std::swap(matrix_array[11], matrix_array[14]);
+    }
+
+    return matrix_array;
+  }
+
+absl::Status RunMPPGraph() {
   std::string calculator_graph_config_contents;
   MP_RETURN_IF_ERROR(mediapipe::file::GetContents(
       absl::GetFlag(FLAGS_calculator_graph_config_file),
@@ -291,20 +213,16 @@ absl::Status RunMPPGraph()
   LOG(INFO) << "Initialize the camera or load the video.";
   cv::VideoCapture capture;
   const bool load_video = !absl::GetFlag(FLAGS_input_video_path).empty();
-  if (load_video)
-  {
+  if (load_video) {
     capture.open(absl::GetFlag(FLAGS_input_video_path));
-  }
-  else
-  {
+  } else {
     capture.open(0);
   }
   RET_CHECK(capture.isOpened());
 
   cv::VideoWriter writer;
   const bool save_video = !absl::GetFlag(FLAGS_output_video_path).empty();
-  if (!save_video)
-  {
+  if (!save_video) {
     cv::namedWindow(kWindowName, /*flags=WINDOW_AUTOSIZE*/ 1);
 #if (CV_MAJOR_VERSION >= 3) && (CV_MINOR_VERSION >= 2)
     capture.set(cv::CAP_PROP_FRAME_WIDTH, 640);
@@ -320,10 +238,11 @@ absl::Status RunMPPGraph()
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller landMarksPoller,
                    graph.AddOutputStreamPoller(kMultiFaceLandMarks));
 
+
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller multiFaceGeometryPoller,
                    graph.AddOutputStreamPoller(kMultiFaceGeometry));
   //
-
+    
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
   float capture_width = static_cast<int>(capture.get(cv::CAP_PROP_FRAME_WIDTH));
@@ -331,15 +250,12 @@ absl::Status RunMPPGraph()
 
   LOG(INFO) << "Start grabbing and processing frames.";
   bool grab_frames = true;
-  while (grab_frames)
-  {
+  while (grab_frames) {
     // Capture opencv camera or video frame.
     cv::Mat camera_frame_raw;
     capture >> camera_frame_raw;
-    if (camera_frame_raw.empty())
-    {
-      if (!load_video)
-      {
+    if (camera_frame_raw.empty()) {
+      if (!load_video) {
         LOG(INFO) << "Ignore empty frames from camera.";
         continue;
       }
@@ -348,8 +264,7 @@ absl::Status RunMPPGraph()
     }
     cv::Mat camera_frame;
     cv::cvtColor(camera_frame_raw, camera_frame, cv::COLOR_BGR2RGB);
-    if (!load_video)
-    {
+    if (!load_video) {
       cv::flip(camera_frame, camera_frame, /*flipcode=HORIZONTAL*/ 1);
     }
 
@@ -369,8 +284,7 @@ absl::Status RunMPPGraph()
 
     // Get the graph result packet, or stop if that fails.
     mediapipe::Packet packet;
-    if (!poller.Next(&packet))
-      break;
+    if (!poller.Next(&packet)) break;
 
     //
     // Get the packet containing multi_hand_landmarks.
@@ -385,77 +299,114 @@ absl::Status RunMPPGraph()
 
       int face_mesh_index = 0;
       FaceMesh faceMesh = {0};
-      faceMesh.capture_width = capture_width;
+      faceMesh.capture_width = capture_width ;
       faceMesh.capture_height = capture_height;
       for (const auto &single_mesh_face_landmarks : landmarks)
       {
         faceMesh.id = face_mesh_index++;
         for (int i = 0; i < single_mesh_face_landmarks.landmark_size(); ++i)
         {
-          if (i >= 478)
-            break; // not needed , just for safety
+          if(i>=478)break;// not needed , just for safety
           const auto &landmark = single_mesh_face_landmarks.landmark(i);
-          faceMesh.landmarkers[i] = Vector3d(landmark.x(), landmark.y(), landmark.z());
+          faceMesh.landmarkers[i] = Vector3d(landmark.x(),landmark.y(),landmark.z());
         }
 
-        zmq_send(zmqPublisher, (const unsigned char *)&faceMesh, sizeof(FaceMesh), 0);
+        zmq_send (zmqPublisher, (const unsigned char*)&faceMesh, sizeof(FaceMesh), 0);
       }
+
     }
 
-    // process and send geometry to remote client
-    ProcessGeometry(multiFaceGeometryPoller, &zmqGeometryPublisher);
+    static uint32_t sequance_id = 0;
+    if (multiFaceGeometryPoller.QueueSize() > 0)
+    {
+      ::mediapipe::Packet face_geometry_packet;
+      if (!multiFaceGeometryPoller.Next(&face_geometry_packet))
+        break;
 
-    auto &output_frame = packet.Get<mediapipe::ImageFrame>();
+      const auto &multi_face_geometry = face_geometry_packet.Get<std::vector<mediapipe::face_geometry::FaceGeometry>>();
+      const int num_faces = multi_face_geometry.size();
+
+      std::vector<std::array<float, 16>> face_pose_transform_matrices(num_faces);
+      std::vector<RenderableMesh3d> renderable_face_meshes(num_faces);
+
+      for (int i = 0; i < num_faces; ++i)
+      {
+        const auto &face_geometry = multi_face_geometry[i];
+
+        ASSIGN_OR_RETURN(
+            face_pose_transform_matrices[i],
+            Convert4x4MatrixDataToArrayFormat(
+                face_geometry.pose_transform_matrix()),
+            _ << "Failed to extract the face pose transformation matrix!");
+
+        // Extract the face mesh as a renderable.
+         ASSIGN_OR_RETURN(
+          renderable_face_meshes[i],
+          RenderableMesh3d::CreateFromProtoMesh3d(face_geometry.mesh()),
+          _ << "Failed to extract a renderable face mesh!");
+
+         if (renderable_face_meshes[i].vertex_buffer.size() == 2340 && renderable_face_meshes[i].index_buffer.size() == 2694)
+         {
+           ZeroMQ3DGeometry zeroMQ3DGeometry = {0};
+           zeroMQ3DGeometry.id = i;
+           zeroMQ3DGeometry.sequance_id = sequance_id;
+           memcpy(zeroMQ3DGeometry.transform_matrix, face_pose_transform_matrices.data(), 16 * sizeof(float));
+           zeroMQ3DGeometry.vertex_size = renderable_face_meshes[i].vertex_size ;
+           zeroMQ3DGeometry.vertex_position_size = renderable_face_meshes[i].vertex_position_size ;
+           zeroMQ3DGeometry.tex_coord_position_size = renderable_face_meshes[i].tex_coord_position_size ;
+           zeroMQ3DGeometry.vertex_position_offset = renderable_face_meshes[i].vertex_position_offset ;
+           zeroMQ3DGeometry.tex_coord_position_offset = renderable_face_meshes[i].tex_coord_position_offset ;
+           zeroMQ3DGeometry.primitive_type = renderable_face_meshes[i].primitive_type ;
+           memcpy(zeroMQ3DGeometry.vertex_buffer, renderable_face_meshes[i].vertex_buffer.data(), 2340 * sizeof(float));
+           memcpy(zeroMQ3DGeometry.index_buffer, renderable_face_meshes[i].index_buffer.data(), 2694 * sizeof(uint16_t));
+           zmq_send (zmqGeometryPublisher, (const unsigned char*)&zeroMQ3DGeometry, sizeof(ZeroMQ3DGeometry), 0);
+         }
+      }
+
+      sequance_id++;
+    }
+
+    auto& output_frame = packet.Get<mediapipe::ImageFrame>();
 
     // Convert back to opencv for display or saving.
     cv::Mat output_frame_mat = mediapipe::formats::MatView(&output_frame);
     cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
-    if (save_video)
-    {
-      if (!writer.isOpened())
-      {
+    if (save_video) {
+      if (!writer.isOpened()) {
         LOG(INFO) << "Prepare video writer.";
         writer.open(absl::GetFlag(FLAGS_output_video_path),
-                    mediapipe::fourcc('a', 'v', 'c', '1'), // .mp4
+                    mediapipe::fourcc('a', 'v', 'c', '1'),  // .mp4
                     capture.get(cv::CAP_PROP_FPS), output_frame_mat.size());
         RET_CHECK(writer.isOpened());
       }
       writer.write(output_frame_mat);
-    }
-    else
-    {
+    } else {
       cv::imshow(kWindowName, output_frame_mat);
       // Press any key to exit.
       const int pressed_key = cv::waitKey(5);
-      if (pressed_key >= 0 && pressed_key != 255)
-        grab_frames = false;
+      if (pressed_key >= 0 && pressed_key != 255) grab_frames = false;
     }
   }
 
   LOG(INFO) << "Shutting down.";
 
-  zmq_close(zmqPublisher);
-  zmq_close(zmqGeometryPublisher);
-  zmq_ctx_destroy(context);
+  zmq_close (zmqPublisher);
+  zmq_close (zmqGeometryPublisher);
+  zmq_ctx_destroy (context);
 
-  if (writer.isOpened())
-    writer.release();
+  if (writer.isOpened()) writer.release();
   MP_RETURN_IF_ERROR(graph.CloseInputStream(kInputStream));
   return graph.WaitUntilDone();
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
   google::InitGoogleLogging(argv[0]);
   absl::ParseCommandLine(argc, argv);
   absl::Status run_status = RunMPPGraph();
-  if (!run_status.ok())
-  {
+  if (!run_status.ok()) {
     LOG(ERROR) << "Failed to run the graph: " << run_status.message();
     return EXIT_FAILURE;
-  }
-  else
-  {
+  } else {
     LOG(INFO) << "Success!";
   }
   return EXIT_SUCCESS;
