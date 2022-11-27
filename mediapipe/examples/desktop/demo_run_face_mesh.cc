@@ -321,16 +321,28 @@ absl::Status RunMPPGraph() {
                 face_geometry.pose_transform_matrix()),
             _ << "Failed to extract the face pose transformation matrix!");
 
+        // column major matrix
         // LOG(INFO) << "face_pose_transform_matrix "<< i;
-        // for(int j = 0 ; j < 16;j++)
-        // {
-        //     LOG(INFO) << face_pose_transform_matrices[i][j];
-        // }
+        // LOG(INFO) << face_pose_transform_matrices[i][0] << ":" << face_pose_transform_matrices[i][4] << ":" << face_pose_transform_matrices[i][8]<< ":" << face_pose_transform_matrices[i][12];
+        // LOG(INFO) << face_pose_transform_matrices[i][1] << ":" << face_pose_transform_matrices[i][5] << ":" << face_pose_transform_matrices[i][9]<< ":" << face_pose_transform_matrices[i][13];
+        // LOG(INFO) << face_pose_transform_matrices[i][2] << ":" << face_pose_transform_matrices[i][6] << ":" << face_pose_transform_matrices[i][10]<< ":" << face_pose_transform_matrices[i][14];
+        // LOG(INFO) << face_pose_transform_matrices[i][3] << ":" << face_pose_transform_matrices[i][7] << ":" << face_pose_transform_matrices[i][11]<< ":" << face_pose_transform_matrices[i][15];
+
         // Extract the face mesh as a renderable.
          ASSIGN_OR_RETURN(
           renderable_face_meshes[i],
           RenderableMesh3d::CreateFromProtoMesh3d(face_geometry.mesh()),
           _ << "Failed to extract a renderable face mesh!");
+
+          // LOG(INFO) << "RenderableMesh3d " << i 
+          // << " vertex_size:" << renderable_face_meshes[i].vertex_size 
+          // << " vertex_position_size:" << renderable_face_meshes[i].vertex_position_size
+          // << " tex_coord_position_size:" << renderable_face_meshes[i].tex_coord_position_size 
+          // << " vertex_position_offset:" << renderable_face_meshes[i].vertex_position_offset 
+          // << " tex_coord_position_offset:" << renderable_face_meshes[i].tex_coord_position_offset 
+          // << " vertex_buffer size:" << renderable_face_meshes[i].vertex_buffer.size() 
+          // << " index_buffer size:" << renderable_face_meshes[i].index_buffer.size() 
+          // ;
       }
     }
 
