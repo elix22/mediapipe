@@ -58,9 +58,11 @@ node {
   calculator: "ConstantSidePacketCalculator"
   output_side_packet: "PACKET:0:num_faces"
   output_side_packet: "PACKET:1:with_attention"
+  output_side_packet: "PACKET:2:with_geometry_attention"
   node_options: {
     [type.googleapis.com/mediapipe.ConstantSidePacketCalculatorOptions]: {
       packet { int_value: 1 }
+      packet { bool_value: true }
       packet { bool_value: false }
     }
   }
@@ -78,11 +80,21 @@ node {
   output_stream: "ROIS_FROM_DETECTIONS:face_rects_from_detections"
 }
 
+# Subgraph that detects faces and corresponding landmarks for geometry reconstruction.
+node {
+  calculator: "FaceLandmarkFrontCpu"
+  input_stream: "IMAGE:throttled_input_video"
+  input_side_packet: "NUM_FACES:num_faces"
+  input_side_packet: "WITH_ATTENTION:with_geometry_attention"
+  output_stream: "LANDMARKS:multi_face_landmarks_for_geometry"
+}
+
+
 # Extracts a single set of face landmarks associated with the most prominent
 # face detected from a collection.
 node {
   calculator: "SplitNormalizedLandmarkListVectorCalculator"
-  input_stream: "multi_face_landmarks"
+  input_stream: "multi_face_landmarks_for_geometry"
   output_stream: "face_landmarks"
   node_options: {
     [type.googleapis.com/mediapipe.SplitVectorCalculatorOptions] {
