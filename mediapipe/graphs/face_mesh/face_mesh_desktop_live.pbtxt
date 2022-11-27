@@ -9,6 +9,29 @@ output_stream: "output_video"
 # landmarks. (std::vector<NormalizedLandmarkList>)
 output_stream: "multi_face_landmarks"
 
+
+# Environment that describes the current virtual scene.
+# (face_geometry::Environment)
+#input_side_packet: "ENVIRONMENT:environment"
+
+# Generates an environment that describes the current virtual scene.
+node {
+  calculator: "FaceGeometryEnvGeneratorCalculator"
+  output_side_packet: "ENVIRONMENT:environment"
+  node_options: {
+    [type.googleapis.com/mediapipe.FaceGeometryEnvGeneratorCalculatorOptions] {
+      environment: {
+        origin_point_location: TOP_LEFT_CORNER
+        perspective_camera: {
+          vertical_fov_degrees: 63.0  # 63 degrees
+          near: 1.0  # 1cm
+          far: 10000.0  # 100m
+        }
+      }
+    }
+  }
+}
+
 # Throttles the images flowing downstream for flow control. It passes through
 # the very first incoming image unaltered, and waits for downstream nodes
 # (calculators and subgraphs) in the graph to finish their tasks before it
@@ -38,7 +61,7 @@ node {
   node_options: {
     [type.googleapis.com/mediapipe.ConstantSidePacketCalculatorOptions]: {
       packet { int_value: 1 }
-      packet { bool_value: true }
+      packet { bool_value: false }
     }
   }
 }
@@ -53,6 +76,62 @@ node {
   output_stream: "ROIS_FROM_LANDMARKS:face_rects_from_landmarks"
   output_stream: "DETECTIONS:face_detections"
   output_stream: "ROIS_FROM_DETECTIONS:face_rects_from_detections"
+}
+
+# Extracts a single set of face landmarks associated with the most prominent
+# face detected from a collection.
+node {
+  calculator: "SplitNormalizedLandmarkListVectorCalculator"
+  input_stream: "multi_face_landmarks"
+  output_stream: "face_landmarks"
+  node_options: {
+    [type.googleapis.com/mediapipe.SplitVectorCalculatorOptions] {
+      ranges: { begin: 0 end: 1 }
+      element_only: true
+    }
+  }
+}
+
+# Extracts the input image frame dimensions as a separate packet.
+node {
+  calculator: "ImagePropertiesCalculator"
+  input_stream:  "IMAGE:throttled_input_video"
+  output_stream: "SIZE:input_image_size"
+}
+
+# Applies smoothing to a face landmark list. The filter options were handpicked
+# to achieve better visual results.
+node {
+  calculator: "LandmarksSmoothingCalculator"
+  input_stream: "NORM_LANDMARKS:face_landmarks"
+  input_stream: "IMAGE_SIZE:input_image_size"
+  output_stream: "NORM_FILTERED_LANDMARKS:smoothed_face_landmarks"
+  node_options: {
+    [type.googleapis.com/mediapipe.LandmarksSmoothingCalculatorOptions] {
+      velocity_filter: {
+        window_size: 5
+        velocity_scale: 20.0
+      }
+    }
+  }
+}
+
+# Puts the single set of smoothed landmarks back into a collection to simplify
+# passing the result into the `FaceGeometryFromLandmarks` subgraph.
+node {
+  calculator: "ConcatenateNormalizedLandmarkListVectorCalculator"
+  input_stream: "smoothed_face_landmarks"
+  output_stream: "multi_smoothed_face_landmarks"
+}
+
+
+# Computes face geometry from face landmarks for a single face.
+node {
+  calculator: "FaceGeometryFromLandmarks"
+  input_stream: "MULTI_FACE_LANDMARKS:multi_smoothed_face_landmarks"
+  input_stream: "IMAGE_SIZE:input_image_size"
+  input_side_packet: "ENVIRONMENT:environment"
+  output_stream: "MULTI_FACE_GEOMETRY:multi_face_geometry"
 }
 
 # Subgraph that renders face-landmark annotation onto the input image.

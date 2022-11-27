@@ -1,3 +1,6 @@
+bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=0 --copt -DMESA_EGL_NO_X11_HEADERS --copt -DEGL_NO_X11 mediapipe/modules/face_geometry/data:geometry_pipeline_metadata_landmarks.binarypb
+cp bazel-out/darwin-opt/bin/mediapipe/modules/face_geometry/data/geometry_pipeline_metadata_landmarks.binarypb /Users/elialoni/mediapipe/mediapipe/modules/face_geometry/data
+
 bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 mediapipe/examples/desktop/hand_tracking:hand_tracking
 GLOG_logtostderr=1 bazel-bin/mediapipe/examples/desktop/hand_tracking/hand_tracking   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_desktop_live.pbtxt
 

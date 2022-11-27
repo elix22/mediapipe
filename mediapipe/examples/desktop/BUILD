@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+
 licenses(["notice"])
 
 package(default_visibility = [
     "//visibility:public",
 ])
+
+
 
 cc_library(
     name = "simple_run_graph_main",
@@ -101,6 +105,8 @@ cc_library(
         "//mediapipe/framework/formats:location_data_cc_proto",
         "//mediapipe/framework/formats:rect_cc_proto",
         "//third_party:zeromq",
+        "//mediapipe/modules/face_geometry:env_generator_calculator_cc_proto",
+        "//mediapipe/modules/face_geometry:face_geometry_from_landmarks",
     ],
 )
 

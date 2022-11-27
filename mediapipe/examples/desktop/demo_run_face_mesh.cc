@@ -28,6 +28,8 @@
 #include "mediapipe/framework/port/status.h"
 #include "mediapipe/framework/formats/landmark.pb.h"
 #include "mediapipe/framework/formats/rect.pb.h"
+#include "mediapipe/modules/face_geometry/protos/face_geometry.pb.h"
+#include "mediapipe/modules/face_geometry/libs/mesh_3d_utils.h"
 
 #include <zmq.h>
 #include <zmq_utils.h>
@@ -59,13 +61,80 @@ struct FaceMesh
   Vector3d landmarkers[478];
 };
 
+#define GL_TRIANGLES                      0x0004
+
+struct RenderableMesh3d {
+  static absl::StatusOr<RenderableMesh3d> CreateFromProtoMesh3d(
+      const mediapipe::face_geometry::Mesh3d& proto_mesh_3d) {
+    mediapipe::face_geometry::Mesh3d::VertexType vertex_type = proto_mesh_3d.vertex_type();
+
+    RenderableMesh3d renderable_mesh_3d;
+    renderable_mesh_3d.vertex_size = GetVertexSize(vertex_type);
+    ASSIGN_OR_RETURN(
+        renderable_mesh_3d.vertex_position_size,
+        GetVertexComponentSize(vertex_type, mediapipe::face_geometry::VertexComponent::POSITION),
+        _ << "Failed to get the position vertex size!");
+    ASSIGN_OR_RETURN(
+        renderable_mesh_3d.tex_coord_position_size,
+        GetVertexComponentSize(vertex_type, mediapipe::face_geometry::VertexComponent::TEX_COORD),
+        _ << "Failed to get the tex coord vertex size!");
+    ASSIGN_OR_RETURN(
+        renderable_mesh_3d.vertex_position_offset,
+        GetVertexComponentOffset(vertex_type, mediapipe::face_geometry::VertexComponent::POSITION),
+        _ << "Failed to get the position vertex offset!");
+    ASSIGN_OR_RETURN(
+        renderable_mesh_3d.tex_coord_position_offset,
+        GetVertexComponentOffset(vertex_type, mediapipe::face_geometry::VertexComponent::TEX_COORD),
+        _ << "Failed to get the tex coord vertex offset!");
+
+    switch (proto_mesh_3d.primitive_type()) {
+      case mediapipe::face_geometry::Mesh3d::TRIANGLE:
+        renderable_mesh_3d.primitive_type = GL_TRIANGLES;
+        break;
+
+      default:
+        RET_CHECK_FAIL() << "Only triangle primitive types are supported!";
+    }
+
+    renderable_mesh_3d.vertex_buffer.reserve(
+        proto_mesh_3d.vertex_buffer_size());
+    for (float vertex_element : proto_mesh_3d.vertex_buffer()) {
+      renderable_mesh_3d.vertex_buffer.push_back(vertex_element);
+    }
+
+    renderable_mesh_3d.index_buffer.reserve(proto_mesh_3d.index_buffer_size());
+    for (uint32_t index_element : proto_mesh_3d.index_buffer()) {
+      RET_CHECK_LE(index_element, std::numeric_limits<uint16_t>::max())
+          << "Index buffer elements must fit into the `uint16` type in order "
+             "to be renderable!";
+
+      renderable_mesh_3d.index_buffer.push_back(
+          static_cast<uint16_t>(index_element));
+    }
+
+    return renderable_mesh_3d;
+  }
+
+  uint32_t vertex_size;
+  uint32_t vertex_position_size;
+  uint32_t tex_coord_position_size;
+  uint32_t vertex_position_offset;
+  uint32_t tex_coord_position_offset;
+  uint32_t primitive_type;
+
+  std::vector<float> vertex_buffer;
+  std::vector<uint16_t> index_buffer;
+};
+
+
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
 constexpr char kWindowName[] = "MediaPipe";
 constexpr char kOutputLandMarks[] = "landmarks";
 constexpr char kMultiFaceLandMarks[] = "multi_face_landmarks";
 constexpr char kFaceRectsLandMarks[] = "face_rects_from_landmarks";
-// 
+constexpr char kMultiFaceGeometry[] = "multi_face_geometry";
+
 
 ABSL_FLAG(std::string, calculator_graph_config_file, "",
           "Name of file containing text format CalculatorGraphConfig proto.");
@@ -75,6 +144,33 @@ ABSL_FLAG(std::string, input_video_path, "",
 ABSL_FLAG(std::string, output_video_path, "",
           "Full path of where to save result (.mp4 only). "
           "If not provided, show result in a window.");
+
+
+  static absl::StatusOr<std::array<float, 16>>
+  Convert4x4MatrixDataToArrayFormat(const mediapipe::MatrixData& matrix_data) {
+    RET_CHECK(matrix_data.rows() == 4 &&  //
+              matrix_data.cols() == 4 &&  //
+              matrix_data.packed_data_size() == 16)
+        << "The matrix data must define a 4x4 matrix!";
+
+    std::array<float, 16> matrix_array;
+    for (int i = 0; i < 16; i++) {
+      matrix_array[i] = matrix_data.packed_data(i);
+    }
+
+    // Matrix array must be in the OpenGL-friendly column-major order. If
+    // `matrix_data` is in the row-major order, then transpose.
+    if (matrix_data.layout() == mediapipe::MatrixData::ROW_MAJOR) {
+      std::swap(matrix_array[1], matrix_array[4]);
+      std::swap(matrix_array[2], matrix_array[8]);
+      std::swap(matrix_array[3], matrix_array[12]);
+      std::swap(matrix_array[6], matrix_array[9]);
+      std::swap(matrix_array[7], matrix_array[13]);
+      std::swap(matrix_array[11], matrix_array[14]);
+    }
+
+    return matrix_array;
+  }
 
 absl::Status RunMPPGraph() {
   std::string calculator_graph_config_contents;
@@ -125,8 +221,9 @@ absl::Status RunMPPGraph() {
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller landMarksPoller,
                    graph.AddOutputStreamPoller(kMultiFaceLandMarks));
 
-  // ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller faceRectsLandMarksPoller,
-  //                  graph.AddOutputStreamPoller(kFaceRectsLandMarks));
+
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller multiFaceGeometryPoller,
+                   graph.AddOutputStreamPoller(kMultiFaceGeometry));
   //
     
   MP_RETURN_IF_ERROR(graph.StartRun({}));
@@ -202,19 +299,40 @@ absl::Status RunMPPGraph() {
 
     }
 
-    // if(faceRectsLandMarksPoller.QueueSize()>0)
-    // {
-    //           ::mediapipe::Packet face_rect_landmarks_packet;
-    //     if (!faceRectsLandMarksPoller.Next(&face_rect_landmarks_packet)) break;
-    //     const auto& rects =
-    //         face_rect_landmarks_packet.Get<
-    //             std::vector<::mediapipe::NormalizedRect>>();
+    if (multiFaceGeometryPoller.QueueSize() > 0)
+    {
+      ::mediapipe::Packet face_geometry_packet;
+      if (!multiFaceGeometryPoller.Next(&face_geometry_packet))
+        break;
 
-    //     // for (const auto &rect : rects)
-    //     // {
-    //     //     rect.x_center();
-    //     // } 
-    // }
+      const auto &multi_face_geometry = face_geometry_packet.Get<std::vector<mediapipe::face_geometry::FaceGeometry>>();
+      const int num_faces = multi_face_geometry.size();
+
+      std::vector<std::array<float, 16>> face_pose_transform_matrices(num_faces);
+      std::vector<RenderableMesh3d> renderable_face_meshes(num_faces);
+
+      for (int i = 0; i < num_faces; ++i)
+      {
+        const auto &face_geometry = multi_face_geometry[i];
+
+        ASSIGN_OR_RETURN(
+            face_pose_transform_matrices[i],
+            Convert4x4MatrixDataToArrayFormat(
+                face_geometry.pose_transform_matrix()),
+            _ << "Failed to extract the face pose transformation matrix!");
+
+        // LOG(INFO) << "face_pose_transform_matrix "<< i;
+        // for(int j = 0 ; j < 16;j++)
+        // {
+        //     LOG(INFO) << face_pose_transform_matrices[i][j];
+        // }
+        // Extract the face mesh as a renderable.
+         ASSIGN_OR_RETURN(
+          renderable_face_meshes[i],
+          RenderableMesh3d::CreateFromProtoMesh3d(face_geometry.mesh()),
+          _ << "Failed to extract a renderable face mesh!");
+      }
+    }
 
     auto& output_frame = packet.Get<mediapipe::ImageFrame>();
 

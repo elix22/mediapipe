@@ -39,6 +39,11 @@ cc_library(
         "//mediapipe/calculators/core:flow_limiter_calculator",
         "//mediapipe/graphs/face_mesh/subgraphs:face_renderer_cpu",
         "//mediapipe/modules/face_landmark:face_landmark_front_cpu",
+        "//mediapipe/calculators/util:landmarks_smoothing_calculator",
+        "//mediapipe/calculators/core:concatenate_vector_calculator",
+        "//mediapipe/modules/face_geometry:face_geometry",
+        "//mediapipe/modules/face_geometry:face_geometry_from_landmarks",
+        "//mediapipe/modules/face_geometry:env_generator_calculator",
     ],
 )
 
