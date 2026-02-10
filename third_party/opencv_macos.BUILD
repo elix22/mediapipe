@@ -35,7 +35,7 @@ exports_files(["LICENSE"])
 # "include/opencv4/opencv2/**/*.h*" and the include prefix needs to be set to
 # "include/opencv4".
 
-PREFIX = "opencv/4.13.0_3"
+PREFIX = ""  # Empty for custom /usr/local install
 
 cc_library(
     name = "opencv",
