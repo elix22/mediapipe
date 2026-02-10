@@ -466,6 +466,11 @@ load(
 
 apple_support_dependencies()
 
+# Apple CC toolchain configuration for Objective-C compilation  
+load("@build_bazel_apple_support//crosstool:setup.bzl", "apple_cc_configure")
+
+apple_cc_configure()
+
 # Kotlin rules
 http_archive(
     name = "rules_kotlin",
